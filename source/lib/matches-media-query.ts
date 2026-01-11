@@ -1,5 +1,5 @@
 import * as mediaQuery from 'css-mediaquery';
-import {Environment} from '../types';
+import {Environment} from '../types.js';
 
 const isConditionSatisfied = (
 	condition: mediaQuery.QueryNode,

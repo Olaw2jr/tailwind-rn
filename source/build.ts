@@ -1,66 +1,96 @@
-import * as css from 'css';
-import cssToReactNative, {StyleTuple} from 'css-to-react-native';
-import remToPx from './lib/rem-to-px';
-import {Utilities} from './types';
+import postcss, { Rule, AtRule } from 'postcss';
+import cssToReactNativeModule from 'css-to-react-native';
+import remToPx from './lib/rem-to-px.js';
+import { Utilities, Utility } from './types.js';
 
-const getStyle = (rule: css.Rule) => {
-	const declarations = rule.declarations as Array<Required<css.Declaration>>;
+const cssToReactNative = (cssToReactNativeModule as any).default || cssToReactNativeModule;
 
-	const properties: StyleTuple[] = declarations
-		.filter(({property}) => property !== 'transform')
-		.map(({property, value}) => {
-			if (typeof value === 'string' && value.endsWith('rem')) {
-				return [property, remToPx(value)];
-			}
-
-			return [property, value];
-		});
-
-	return cssToReactNative(properties);
-};
-
-const build = (source: string) => {
-	const {stylesheet} = css.parse(source);
-
-	// Mapping of Tailwind class names to React Native styles
-	const utilities: Utilities = {};
-
-	if (!stylesheet) {
-		return utilities;
+class StyleConverter {
+	private camelCase(str: string): string {
+		if (str.startsWith('--')) return str;
+		return str.replace(/-([a-z])/g, (_, g) => (g ? g.toUpperCase() : ''));
 	}
 
-	const addRule = (rule: css.Rule, media?: string) => {
-		if (!Array.isArray(rule.selectors)) {
+	public convertRule(rule: Rule): Utility['style'] {
+		const properties: StyleTuple[] = [];
+		const rawProperties: Record<string, string | number | string[]> = {};
+
+		rule.walkDecls(decl => {
+			const { prop: property, value } = decl;
+			
+			if (
+				property === 'transform' || 
+				property.startsWith('--') || 
+				value.includes('calc(') || 
+				value.includes('var(')
+			) {
+				rawProperties[this.camelCase(property)] = value;
+				return;
+			}
+
+			if (typeof value === 'string' && value.endsWith('rem')) {
+				properties.push([property, remToPx(value)]);
+			} else {
+				properties.push([property, value]);
+			}
+		});
+
+		let style: Record<string, any> = {};
+		try {
+			if (properties.length > 0) {
+				style = cssToReactNative(properties);
+			}
+		} catch {
+			properties.forEach(([prop, val]) => {
+				rawProperties[this.camelCase(prop)] = val;
+			});
+		}
+
+		return { ...style, ...rawProperties };
+	}
+}
+
+const build = (source: string): Utilities => {
+	const root = postcss.parse(source);
+	const converter = new StyleConverter();
+
+	const utilities: Utilities = {
+		utilities: {},
+		variables: {}
+	};
+
+	root.walkRules(rule => {
+		const selectors = rule.selectors;
+		if (!selectors) return;
+
+		// Extract global variables
+		if (selectors.some(s => s === ':root' || s === ':host' || s === '*')) {
+			rule.walkDecls(decl => {
+				if (decl.prop.startsWith('--')) {
+					utilities.variables[decl.prop] = decl.value;
+				}
+			});
 			return;
 		}
 
-		for (const selector of rule.selectors) {
-			const utility = selector.replace(/^\./, '').replace(/\\/g, '');
+		const media = rule.parent?.type === 'atrule' && (rule.parent as AtRule).name === 'media' 
+			? (rule.parent as AtRule).params 
+			: undefined;
 
-			utilities[utility] = {
-				style: getStyle(rule),
+		for (const selector of selectors) {
+			if (!selector.startsWith('.')) continue;
+			const utilityName = selector.slice(1).replace(/\\/g, '');
+
+			utilities.utilities[utilityName] = {
+				style: converter.convertRule(rule),
 				media
 			};
 		}
-	};
-
-	for (const rule of stylesheet.rules) {
-		if (rule.type === 'rule') {
-			addRule(rule);
-		}
-
-		if (rule.type === 'media') {
-			const mediaRule = rule as Required<css.Media>;
-
-			for (const childRule of mediaRule.rules) {
-				if (childRule.type === 'rule') {
-					addRule(childRule, mediaRule.media);
-				}
-			}
-		}
-	}
+	});
 
 	return utilities;
 };
 
 export default build;
+
+type StyleTuple = [string, string];

@@ -1,5 +1,5 @@
 import {createContext} from 'react';
-import {Style} from './types';
+import {RNStyle as Style} from './types.js';
 
 const TailwindContext = createContext((_classNames: string): Style => ({}));
 

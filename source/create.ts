@@ -1,61 +1,96 @@
-import evaluateStyle from './lib/evaluate-style';
-import matchesMediaQuery from './lib/matches-media-query';
-import addFontVariant from './lib/add-font-variant';
-import addLetterSpacing from './lib/add-letter-spacing';
-import {Utilities, Style, Environment} from './types';
+import StyleEvaluator from './lib/style-evaluator.js';
+import matchesMediaQuery from './lib/matches-media-query.js';
+import addLetterSpacing from './lib/add-letter-spacing.js';
+import { Utilities, Environment, TailwindState, RNStyle, TailwindFunction } from './types.js';
 
-const create = (utilities: Utilities, environment: Environment) => {
-	// Pass a list of class names separated by a space, for example:
-	// "bg-green-100 text-green-800 font-semibold")
-	// and receive a styles object for use in React Native views
-	const tailwind = (classNames: string) => {
-		const style: Style = {};
+class TailwindRuntime {
+	private readonly cache = new Map<string, RNStyle>();
+	private readonly evaluator: StyleEvaluator;
 
-		if (!classNames) {
-			return style;
-		}
+	constructor(
+		private readonly data: Utilities,
+		private readonly environment: Environment
+	) {
+		this.evaluator = new StyleEvaluator(environment);
+	}
 
-		// Font variant utilities need a special treatment, because there can be
-		// many font variant classes and they need to be transformed to an array
-		addFontVariant(style, classNames);
+	public create(): TailwindFunction {
+		return (classNames: string, state?: TailwindState): RNStyle => {
+			const cacheKey = `${classNames}_${JSON.stringify(state)}`;
+			if (this.cache.has(cacheKey)) return this.cache.get(cacheKey)!;
 
-		// Letter spacing also needs a special treatment, because its value is set
-		// in em unit, that's why it requires a font size to be set too, so that
-		// we can calculate a px value
-		addLetterSpacing(utilities, style, classNames);
+			let style: Record<string, any> = {};
+			if (!classNames) return style as RNStyle;
 
-		const separateClassNames = classNames
-			.replace(/\s+/g, ' ')
-			.trim()
-			.split(' ');
+			const separateClassNames = classNames.replace(/\s+/g, ' ').trim().split(' ');
 
-		for (const className of separateClassNames) {
-			// Skip font variant and letter spacing utiltiies, because they're
-			// handled by `addFontVariant` and `addLetterSpacing` functions
-			if (className.endsWith('-nums') || className.startsWith('tracking-')) {
-				continue;
-			}
+			for (const className of separateClassNames) {
+				if (className.startsWith('tracking-')) continue;
 
-			const utility = utilities[className];
+				const targetClass = this.resolveClass(className, state);
+				if (!targetClass) continue;
 
-			if (!utility) {
-				console.warn(`Unsupported Tailwind class: "${className}"`);
-				continue;
-			}
+				const utility = this.data.utilities[targetClass];
+				if (!utility) continue;
 
-			if (utility.media) {
-				if (matchesMediaQuery(utility.media, environment)) {
-					Object.assign(style, utility.style);
+				if (!utility.media || matchesMediaQuery(utility.media, this.environment)) {
+					style = this.mergeStyles(style, utility.style);
 				}
-			} else {
-				Object.assign(style, utility.style);
 			}
+
+			addLetterSpacing(this.data, style, classNames);
+
+			const result = this.evaluator.evaluate({ ...this.data.variables, ...style });
+			this.cache.set(cacheKey, result);
+			return result;
+		};
+	}
+
+	private resolveClass(className: string, state?: TailwindState): string | null {
+		const platformPrefixes = ['ios:', 'android:', 'web:', 'macos:', 'windows:'];
+		const directionPrefixes = ['rtl:', 'ltr:'];
+		const statePrefixes = ['hover:', 'active:', 'focus:'];
+		const allPrefixes = [...platformPrefixes, ...directionPrefixes, ...statePrefixes];
+
+		if (!allPrefixes.some(p => className.startsWith(p))) return className;
+
+		if (className.startsWith(`${this.environment.platform}:`)) {
+			return className.replace(`${this.environment.platform}:`, '');
+		}
+		if (className.startsWith('rtl:') && this.environment.isRTL) {
+			return className.replace('rtl:', '');
+		}
+		if (className.startsWith('ltr:') && !this.environment.isRTL) {
+			return className.replace('ltr:', '');
+		}
+		if (className.startsWith('hover:') && state?.hovered) {
+			return className.replace('hover:', '');
+		}
+		if (className.startsWith('active:') && state?.active) {
+			return className.replace('active:', '');
+		}
+		if (className.startsWith('focus:') && state?.focused) {
+			return className.replace('focus:', '');
 		}
 
-		return evaluateStyle(style);
-	};
+		return null;
+	}
 
-	return tailwind;
+	private mergeStyles(base: Record<string, any>, extra: Record<string, any>): Record<string, any> {
+		const result = { ...base };
+		for (const [key, value] of Object.entries(extra)) {
+			if (key === 'fontVariant' && Array.isArray(value)) {
+				result[key] = [...(result[key] as string[] || []), ...value];
+			} else {
+				result[key] = value;
+			}
+		}
+		return result;
+	}
+}
+
+const create = (data: Utilities, environment: Environment): TailwindFunction => {
+	return new TailwindRuntime(data, environment).create();
 };
 
 export default create;

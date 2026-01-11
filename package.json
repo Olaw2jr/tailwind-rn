@@ -1,7 +1,8 @@
 {
 	"name": "tailwind-rn",
-	"version": "4.2.0",
-	"description": "Use Tailwind CSS in React Native projects",
+	"version": "5.0.0",
+	"type": "module",
+	"description": "Use Tailwind CSS v4 in React Native projects",
 	"license": "MIT",
 	"repository": "vadimdemedes/tailwind-rn",
 	"author": {
@@ -17,8 +18,8 @@
 		"node": ">=12"
 	},
 	"scripts": {
-		"build": "tsc",
-		"test": "xo && tsc && ava"
+		"build": "tsc --module esnext --moduleResolution bundler",
+		"test": "xo && npm run build && ava"
 	},
 	"files": [
 		"dist",
@@ -33,36 +34,36 @@
 		"@react-native-community/hooks": "^3.0.0",
 		"chokidar": "^3.5.3",
 		"color-string": "^1.9.1",
-		"css": "^3.0.0",
 		"css-mediaquery": "^0.1.2",
-		"css-to-react-native": "^3.2.0",
-		"meow": "^11.0.0"
+		"css-to-react-native": "^3.2.0"
 	},
 	"devDependencies": {
 		"@sindresorhus/tsconfig": "^3.0.1",
+		"@tailwindcss/cli": "^4.1.18",
 		"@types/color-string": "^1.5.2",
-		"@types/css": "^0.0.33",
 		"@types/css-mediaquery": "^0.1.1",
 		"@types/css-to-react-native": "^3.0.0",
+		"@types/node": "^25.0.6",
 		"@types/react": "^18.0.28",
 		"@types/react-native": "^0.71.11",
 		"@vdemedes/prettier-config": "^2.0.1",
 		"ava": "^5.2.0",
 		"dataloader": "^2.2.2",
 		"delay": "^5.0.0",
-		"execa": "^7.0.0",
-		"postcss": "^8.4.21",
+		"execa": "^5.1.1",
+		"meow": "^14.0.0",
+		"postcss": "^8.5.6",
 		"prettier": "^2.8.4",
 		"react": "^18.2.0",
 		"react-test-renderer": "^18.2.0",
-		"tailwindcss": "^3.2.7",
-		"tempy": "^3.0.0",
-		"typescript": "^4.9.5",
+		"tailwindcss": "^4.1.18",
+		"tempy": "^1.0.1",
+		"typescript": "^5.9.3",
 		"xo": "^0.53.1"
 	},
 	"peerDependencies": {
 		"react-native": "*",
-		"tailwindcss": "^3.0.0"
+		"tailwindcss": "^4.0.0"
 	},
 	"prettier": "@vdemedes/prettier-config",
 	"xo": {

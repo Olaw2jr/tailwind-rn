@@ -1,14 +1,15 @@
-import {Utilities, Style} from '../types';
-import emToPx from './em-to-px';
+import {Utilities} from '../types.js';
+import emToPx from './em-to-px.js';
 
 const FONT_SIZE_REGEX = /text-(xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl)/;
 const LETTER_SPACING_REGEX = /(tracking-[a-z]+)/;
 
 const addLetterSpacing = (
-	utilities: Utilities,
-	style: Style,
+	data: Utilities,
+	style: Record<string, any>,
 	classNames: string
 ) => {
+	const {utilities} = data;
 	const letterSpacingMatches = LETTER_SPACING_REGEX.exec(classNames);
 
 	if (!letterSpacingMatches) {
